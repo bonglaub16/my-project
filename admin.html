@@ -50,7 +50,7 @@
             <input id="urlInput" type="url" required placeholder="https://..." />
           </label>
           <div class="preview-box">
-            <canvas id="previewCanvas" width="240" height="240"></canvas>
+            <div id="previewQr" class="preview-qr"></div>
           </div>
           <button class="btn btn-primary" type="submit">Lưu và cập nhật mã QR</button>
         </form>
@@ -69,7 +69,7 @@
     </section>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script type="module" src="js/admin.js"></script>
 </body>
 </html>
