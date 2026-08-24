@@ -1,56 +1,47 @@
 # QR Display App
 
-Web app đơn giản để Admin thay một đường link và tất cả người dùng đang mở trang QR sẽ nhận mã QR mới gần như ngay lập tức.
+Web app hiển thị một mã QR công khai. Admin có thể đăng nhập, dán một URL mới và cập nhật mã QR cho tất cả người đang mở trang gần như ngay lập tức.
+
+## Live URLs
+
+- Public QR: `https://bonglaub16.github.io/my-project/`
+- Admin: `https://bonglaub16.github.io/my-project/admin.html`
+- Repository: `https://github.com/bonglaub16/my-project`
 
 ## Chức năng
-- Trang công khai hiển thị QR lớn, responsive
-- Fullscreen cho TV/máy chiếu
+
+- Trang QR công khai, responsive, phù hợp TV/máy chiếu
+- Fullscreen
+- Supabase Realtime cập nhật QR gần như tức thời
+- Cache QR gần nhất bằng localStorage khi mất mạng
 - Admin đăng nhập bằng Supabase Auth
-- Dán URL mới + preview QR
-- Lưu link mới và cập nhật realtime
-- Lịch sử 20 link gần nhất + khôi phục
-- Cache QR gần nhất để vẫn hiển thị khi mất mạng
-- Chỉ chấp nhận URL http/https
+- Tạo tài khoản Admin lần đầu ngay trên giao diện
+- Cơ chế mã thiết lập một lần để nhận quyền Admin
+- Dán URL, xem trước QR, lưu và cập nhật
+- Lịch sử 20 URL gần nhất và khôi phục nhanh
+- Chỉ chấp nhận `http://` và `https://`
+- RLS và RPC kiểm tra quyền Admin ở phía database
+- GitHub Actions tự động deploy GitHub Pages khi push vào `main`
 
-## 1. Tạo Supabase
-1. Tạo project tại Supabase.
-2. Vào **SQL Editor** và chạy toàn bộ `schema.sql`.
-3. Vào **Authentication > Users** và tạo tài khoản Admin bằng email + password.
-4. Vào **Project Settings > API** lấy:
-   - Project URL
-   - anon/public key
-5. Mở `js/config.js` và thay 2 giá trị tương ứng.
+## Supabase production
 
-> Không bao giờ đưa `service_role` key vào frontend.
+Project hiện đã được cấu hình trong `js/config.js` bằng **Project URL** và **publishable key**. Publishable key là loại key dành cho frontend; quyền dữ liệu được bảo vệ bằng Row Level Security.
 
-## 2. Chạy thử local
-Do app dùng ES Modules, hãy chạy bằng local web server, ví dụ VS Code Live Server hoặc:
+Không bao giờ đưa `service_role` hoặc secret key vào frontend hay GitHub.
 
-```bash
-python3 -m http.server 8080
-```
+## Khởi tạo Admin lần đầu
 
-Sau đó mở:
-- `http://localhost:8080/`
-- `http://localhost:8080/admin.html`
-
-## 3. Đưa lên GitHub Pages
-1. Tạo repository mới trên GitHub.
-2. Push toàn bộ project lên branch `main`.
-3. Vào **Settings > Pages**.
-4. Chọn **Deploy from a branch**.
-5. Branch: `main`, folder: `/ (root)`.
-6. Save.
-
-Trang public sẽ có dạng:
-`https://USERNAME.github.io/REPOSITORY/`
-
-Trang Admin:
-`https://USERNAME.github.io/REPOSITORY/admin.html`
+1. Mở trang Admin.
+2. Nhập email và mật khẩu tối thiểu 8 ký tự.
+3. Chọn **Tạo tài khoản Admin lần đầu**.
+4. Nếu Supabase yêu cầu xác nhận email, xác nhận email rồi quay lại trang Admin để đăng nhập.
+5. Khi được hỏi mã thiết lập Admin một lần, nhập mã do chủ dự án lưu giữ.
+6. Sau khi nhận quyền thành công, mã thiết lập bị xóa khỏi database và không thể dùng lần hai.
 
 ## Cấu trúc
+
 ```text
-qr-display-app/
+my-project/
 ├── index.html
 ├── admin.html
 ├── schema.sql
@@ -58,12 +49,22 @@ qr-display-app/
 ├── css/
 │   ├── style.css
 │   └── admin.css
-└── js/
-    ├── config.js
-    ├── supabaseClient.js
-    ├── app.js
-    └── admin.js
+├── js/
+│   ├── config.js
+│   ├── supabaseClient.js
+│   ├── app.js
+│   └── admin.js
+└── .github/
+    └── workflows/
+        └── pages.yml
 ```
 
 ## Bảo mật
-Bản MVP cho phép mọi user đã đăng nhập Supabase được sửa QR. Nếu chỉ có 1 tài khoản Admin thì đây là lựa chọn đơn giản nhất. Nếu sau này có nhiều tài khoản, nên thêm bảng `admins` và policy kiểm tra UID cụ thể.
+
+Public chỉ có quyền đọc `qr_config`. Các thao tác cập nhật QR và lịch sử đi qua PostgreSQL functions kiểm tra `auth.uid()` có nằm trong `app_admins` hay không. `app_admins` và `app_settings` không được cấp quyền đọc trực tiếp cho trình duyệt.
+
+Các SECURITY DEFINER RPC được chủ động thiết kế để callable bởi user đã đăng nhập, nhưng mỗi hàm tự kiểm tra quyền hoặc mã bootstrap trước khi thực hiện thay đổi.
+
+## Deploy
+
+Workflow `.github/workflows/pages.yml` được kích hoạt mỗi khi branch `main` thay đổi và deploy site tĩnh lên GitHub Pages.
