@@ -16,14 +16,16 @@ const message = document.getElementById('message');
 function showMessage(text, type = 'success') {
   message.textContent = text;
   message.className = `message ${type}`;
-  setTimeout(() => message.classList.add('hidden'), 3500);
+  setTimeout(() => message.classList.add('hidden'), 4500);
 }
 
 function isSafeHttpUrl(value) {
   try {
     const url = new URL(value);
     return url.protocol === 'https:' || url.protocol === 'http:';
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 async function drawPreview() {
@@ -33,7 +35,7 @@ async function drawPreview() {
 }
 
 async function loadCurrent() {
-  const { data, error } = await supabase.from('qr_config').select('*').eq('id', 1).single();
+  const { data, error } = await supabase.from('qr_config').select('id,url,title,updated_at').eq('id', 1).single();
   if (error) throw error;
   currentLink.textContent = data.url;
   currentLink.href = data.url;
@@ -43,14 +45,35 @@ async function loadCurrent() {
   await drawPreview();
 }
 
-async function loadHistory() {
-  const { data, error } = await supabase.from('qr_history').select('*').order('created_at', { ascending: false }).limit(20);
+async function ensureAdminAccess() {
+  const { data, error } = await supabase.rpc('is_current_user_admin');
   if (error) throw error;
+  if (data) return true;
+
+  const setupCode = window.prompt('Tài khoản này chưa có quyền Admin. Nhập mã thiết lập Admin một lần:');
+  if (!setupCode) return false;
+
+  const { data: claimed, error: claimError } = await supabase.rpc('claim_admin', { setup_code: setupCode.trim() });
+  if (claimError) throw claimError;
+  if (!claimed) {
+    showMessage('Mã thiết lập không đúng hoặc quyền Admin đã được nhận bởi tài khoản khác.', 'error');
+    return false;
+  }
+
+  showMessage('Đã kích hoạt quyền Admin cho tài khoản này.');
+  return true;
+}
+
+async function loadHistory() {
+  const { data, error } = await supabase.from('qr_history').select('id,url,title,created_at').order('created_at', { ascending: false }).limit(20);
+  if (error) throw error;
+
   historyList.innerHTML = '';
   if (!data.length) {
     historyList.innerHTML = '<div class="history-item">Chưa có lịch sử.</div>';
     return;
   }
+
   for (const item of data) {
     const div = document.createElement('div');
     div.className = 'history-item';
@@ -61,43 +84,51 @@ async function loadHistory() {
       <div class="history-actions"><button class="btn btn-secondary" type="button">Khôi phục</button></div>`;
     div.querySelector('.url').textContent = item.url;
     div.querySelector('button').addEventListener('click', async () => {
-      await saveConfig(item.url, item.title || 'Quét mã QR để truy cập');
+      try {
+        await saveConfig(item.url, item.title || 'Quét mã QR để truy cập');
+      } catch (error) {
+        showMessage(error.message || 'Không thể khôi phục.', 'error');
+      }
     });
     historyList.appendChild(div);
   }
 }
 
 async function saveConfig(url, title) {
-  if (!isSafeHttpUrl(url)) throw new Error('Đường dẫn không hợp lệ. Chỉ chấp nhận http:// hoặc https://');
+  if (!isSafeHttpUrl(url)) {
+    throw new Error('Đường dẫn không hợp lệ. Chỉ chấp nhận http:// hoặc https://');
+  }
 
-  const { error: historyError } = await supabase.from('qr_history').insert({ url, title });
-  if (historyError) throw historyError;
-
-  const { error } = await supabase
-    .from('qr_config')
-    .update({ url, title, updated_at: new Date().toISOString() })
-    .eq('id', 1);
+  const cleanTitle = (title || '').trim() || 'Quét mã QR để truy cập';
+  const { error } = await supabase.rpc('update_qr', { p_url: url, p_title: cleanTitle });
   if (error) throw error;
 
-  await loadCurrent();
-  await loadHistory();
+  await Promise.all([loadCurrent(), loadHistory()]);
   showMessage('Đã cập nhật mã QR cho tất cả người dùng.');
 }
 
 async function refreshAuthUI() {
   const { data: { session } } = await supabase.auth.getSession();
   const loggedIn = !!session;
+
   loginForm.classList.toggle('hidden', loggedIn);
-  adminPanel.classList.toggle('hidden', !loggedIn);
   logoutBtn.classList.toggle('hidden', !loggedIn);
-  if (loggedIn) {
-    try { await Promise.all([loadCurrent(), loadHistory()]); }
-    catch (error) { showMessage(error.message || 'Không thể tải dữ liệu.', 'error'); }
+  adminPanel.classList.add('hidden');
+
+  if (!loggedIn) return;
+
+  try {
+    const isAdmin = await ensureAdminAccess();
+    if (!isAdmin) return;
+    adminPanel.classList.remove('hidden');
+    await Promise.all([loadCurrent(), loadHistory()]);
+  } catch (error) {
+    showMessage(error.message || 'Không thể xác minh quyền Admin.', 'error');
   }
 }
 
-loginForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
+loginForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
   const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -105,13 +136,27 @@ loginForm.addEventListener('submit', async (e) => {
   await refreshAuthUI();
 });
 
-logoutBtn.addEventListener('click', async () => { await supabase.auth.signOut(); await refreshAuthUI(); });
+logoutBtn.addEventListener('click', async () => {
+  await supabase.auth.signOut();
+  await refreshAuthUI();
+});
+
 urlInput.addEventListener('input', drawPreview);
-refreshHistoryBtn.addEventListener('click', async () => { try { await loadHistory(); } catch (e) { showMessage(e.message, 'error'); } });
-updateForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  try { await saveConfig(urlInput.value.trim(), titleInput.value.trim() || 'Quét mã QR để truy cập'); }
-  catch (error) { showMessage(error.message || 'Không thể cập nhật.', 'error'); }
+refreshHistoryBtn.addEventListener('click', async () => {
+  try {
+    await loadHistory();
+  } catch (error) {
+    showMessage(error.message || 'Không thể tải lịch sử.', 'error');
+  }
+});
+
+updateForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    await saveConfig(urlInput.value.trim(), titleInput.value);
+  } catch (error) {
+    showMessage(error.message || 'Không thể cập nhật.', 'error');
+  }
 });
 
 supabase.auth.onAuthStateChange(() => refreshAuthUI());
