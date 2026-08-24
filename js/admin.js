@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient.js';
 
 const loginForm = document.getElementById('loginForm');
+const signupBtn = document.getElementById('signupBtn');
 const adminPanel = document.getElementById('adminPanel');
 const logoutBtn = document.getElementById('logoutBtn');
 const updateForm = document.getElementById('updateForm');
@@ -17,6 +18,13 @@ function showMessage(text, type = 'success') {
   message.textContent = text;
   message.className = `message ${type}`;
   setTimeout(() => message.classList.add('hidden'), 4500);
+}
+
+function getCredentials() {
+  return {
+    email: document.getElementById('email').value.trim(),
+    password: document.getElementById('password').value,
+  };
 }
 
 function isSafeHttpUrl(value) {
@@ -129,11 +137,27 @@ async function refreshAuthUI() {
 
 loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const email = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value;
+  const { email, password } = getCredentials();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return showMessage(error.message, 'error');
   await refreshAuthUI();
+});
+
+signupBtn.addEventListener('click', async () => {
+  const { email, password } = getCredentials();
+  if (!email || !password || password.length < 8) {
+    return showMessage('Hãy nhập email hợp lệ và mật khẩu ít nhất 8 ký tự.', 'error');
+  }
+
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) return showMessage(error.message, 'error');
+
+  if (data.session) {
+    showMessage('Đã tạo tài khoản. Đang kích hoạt quyền Admin...');
+    await refreshAuthUI();
+  } else {
+    showMessage('Đã tạo tài khoản. Hãy kiểm tra email xác nhận, sau đó quay lại đăng nhập.');
+  }
 });
 
 logoutBtn.addEventListener('click', async () => {
