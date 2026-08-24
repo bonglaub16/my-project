@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient.js';
 
-const qrCanvas = document.getElementById('qrCanvas');
+const qrContainer = document.getElementById('qrContainer');
 const currentLink = document.getElementById('currentLink');
 const displayTitle = document.getElementById('displayTitle');
 const statusBadge = document.getElementById('statusBadge');
@@ -12,17 +12,31 @@ function setStatus(text, mode = '') {
   statusBadge.className = `status-badge ${mode}`.trim();
 }
 
+function renderQr(url) {
+  qrContainer.innerHTML = '';
+  new QRCode(qrContainer, {
+    text: url,
+    width: 420,
+    height: 420,
+    correctLevel: QRCode.CorrectLevel.H,
+  });
+}
+
 async function renderConfig(config) {
   if (!config?.url) return;
   displayTitle.textContent = config.title || 'Quét mã QR để truy cập';
   currentLink.textContent = config.url;
   currentLink.href = config.url;
-  await QRCode.toCanvas(qrCanvas, config.url, { width: 420, margin: 1, errorCorrectionLevel: 'H' });
+  renderQr(config.url);
   localStorage.setItem(CACHE_KEY, JSON.stringify(config));
 }
 
 function loadCache() {
-  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch { return null; }
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+  } catch {
+    return null;
+  }
 }
 
 async function fetchCurrent() {
@@ -54,7 +68,13 @@ async function boot() {
     });
 }
 
-window.addEventListener('online', async () => { try { await fetchCurrent(); setStatus('✓ Đã kết nối', 'online'); } catch {} });
+window.addEventListener('online', async () => {
+  try {
+    await fetchCurrent();
+    setStatus('✓ Đã kết nối', 'online');
+  } catch {}
+});
+
 window.addEventListener('offline', () => setStatus('⚠ Đang ngoại tuyến', 'offline'));
 
 fullscreenBtn.addEventListener('click', async () => {
