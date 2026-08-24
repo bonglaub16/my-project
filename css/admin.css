@@ -12,7 +12,8 @@ input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); 
 .current-box small { color: #94a3b8; }
 .section-gap { margin-top: 30px; }
 .preview-box { display: grid; place-items: center; border-radius: 18px; padding: 18px; background: #f8fafc; border: 1px dashed #cbd5e1; }
-.preview-box canvas { max-width: 240px; width: 100%; height: auto; }
+.preview-qr { width: 240px; height: 240px; display: grid; place-items: center; background: #fff; }
+.preview-qr img, .preview-qr canvas { display: block; width: 240px !important; height: 240px !important; image-rendering: pixelated; }
 .message { margin-top: 16px; padding: 12px 14px; border-radius: 12px; font-weight: 700; }
 .message.success { background: #dcfce7; color: #166534; }
 .message.error { background: #fee2e2; color: #991b1b; }
