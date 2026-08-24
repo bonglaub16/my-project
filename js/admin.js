@@ -7,7 +7,7 @@ const logoutBtn = document.getElementById('logoutBtn');
 const updateForm = document.getElementById('updateForm');
 const urlInput = document.getElementById('urlInput');
 const titleInput = document.getElementById('titleInput');
-const previewCanvas = document.getElementById('previewCanvas');
+const previewQr = document.getElementById('previewQr');
 const currentLink = document.getElementById('adminCurrentLink');
 const updatedAt = document.getElementById('updatedAt');
 const historyList = document.getElementById('historyList');
@@ -36,10 +36,17 @@ function isSafeHttpUrl(value) {
   }
 }
 
-async function drawPreview() {
+function drawPreview() {
   const value = urlInput.value.trim();
+  previewQr.innerHTML = '';
   if (!isSafeHttpUrl(value)) return;
-  await QRCode.toCanvas(previewCanvas, value, { width: 240, margin: 1, errorCorrectionLevel: 'H' });
+
+  new QRCode(previewQr, {
+    text: value,
+    width: 240,
+    height: 240,
+    correctLevel: QRCode.CorrectLevel.H,
+  });
 }
 
 async function loadCurrent() {
@@ -50,7 +57,7 @@ async function loadCurrent() {
   urlInput.value = data.url;
   titleInput.value = data.title || 'Quét mã QR để truy cập';
   updatedAt.textContent = `Cập nhật gần nhất: ${new Date(data.updated_at).toLocaleString('vi-VN')}`;
-  await drawPreview();
+  drawPreview();
 }
 
 async function ensureAdminAccess() {
@@ -149,7 +156,11 @@ signupBtn.addEventListener('click', async () => {
     return showMessage('Hãy nhập email hợp lệ và mật khẩu ít nhất 8 ký tự.', 'error');
   }
 
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}` },
+  });
   if (error) return showMessage(error.message, 'error');
 
   if (data.session) {
